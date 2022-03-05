@@ -6,11 +6,9 @@ import { localStorage } from "../storage.mjs";
 import Breadcrumb from "./Breadcrumb.mjs";
 import Loading from "./Loading.mjs";
 import { API_ERROR_MESSAGE } from "../contants.mjs";
-import { cache } from "../cache.mjs";
+import { documentCache } from "../cache.mjs";
 
 export default class App extends Component {
-  isLoading = false;
-
   constructor(...args) {
     super(...args);
 
@@ -20,93 +18,52 @@ export default class App extends Component {
 
     this.breadcrumb = new Breadcrumb($breadcrumb, {
       path: [],
-      openBreadcrumb: this.openBreadcrumb.bind(this),
+      openBreadcrumb: this.#openBreadcrumb.bind(this),
     });
 
     this.nodes = new Nodes($nodes, {
       documents: [],
-      openNode: this.openNode.bind(this),
-      goBack: this.goBack.bind(this),
+      openNode: this.#openNode.bind(this),
+      goBack: this.#goBack.bind(this),
     });
 
     this.imageViewer = new ImageViewer(document.body, {
       visible: false,
       filepath: null,
-      closeModal: this.closeModal.bind(this),
+      setImageVisible: this.#setImageVisible.bind(this),
     });
 
     this.loading = new Loading(document.body, {
       isLoading: this.isLoading,
     });
 
-    this.mounted();
+    this.#setInitialData();
   }
 
-  mounted() {
+  #setInitialData() {
     const path = localStorage.get("path");
     const documents = localStorage.get("documents");
 
-    if (path) {
-      this.breadcrumb.setState({
-        ...this.breadcrumb.state,
-        path,
-      });
-    }
-
-    if (documents) {
-      this.nodes.setState({ ...this.nodes.state, documents });
-      return;
-    }
-    this.fetchDocuments("/");
-  }
-
-  render() {
-    return `
-      <nav class="Breadcrumb"></nav>
-      <div class="Nodes"></div>
-    `;
-  }
-
-  openNode({ target }) {
-    if (!target.closest(".Node")) return;
-
-    const { id, type, filepath, name } = target.closest(".Node").dataset;
-
-    if (type === "FILE") {
-      this.imageViewer.setState({
-        ...this.imageViewer.state,
-        visible: true,
-        filepath,
-      });
+    if (!documents) {
+      this.#fetchDocuments("/");
+      this.#setPath([]);
       return;
     }
 
-    if (cache.hasOwnProperty(id)) {
-      this.nodes.setState({ ...this.nodes.state, documents: cache[id] });
-      localStorage.set("documents", cache[id]);
-    } else {
-      this.fetchDocuments(id);
-    }
-
-    const path = [...this.breadcrumb.state.path, [id, name]];
-
-    this.breadcrumb.setState({
-      ...this.breadcrumb.state,
-      path,
-    });
-
-    localStorage.set("path", path);
+    this.#setPath(path);
+    this.#setDocuments(documents);
+    this.#setDocumentCache("/", documents);
   }
 
-  fetchDocuments(id) {
+  #fetchDocuments(id) {
     (async () => {
-      this.loading.setState({ ...this.loading.state, isLoading: true });
-      const documentsCache = cache[id];
+      this.#toggleLoading();
 
-      if (documentsCache) {
-        this.nodes.setState({ ...this.nodes.state, documents: documentsCache });
-        localStorage.set("documents", documentsCache);
-        this.loading.setState({ ...this.loading.state, isLoading: false });
+      const documentCacheData = documentCache[id];
+
+      if (documentCacheData) {
+        this.#setDocuments(documentCacheData);
+        this.#toggleLoading();
         return;
       }
 
@@ -114,80 +71,113 @@ export default class App extends Component {
 
       if (response.isError) {
         alert(API_ERROR_MESSAGE);
-        this.loading.setState({ ...this.loading.state, isLoading: false });
+        this.#toggleLoading();
         return;
       }
 
-      this.nodes.setState({ ...this.nodes.state, documents: response.data });
-      localStorage.set("documents", response.data);
-      cache[id] = response.data;
-      this.loading.setState({ ...this.loading.state, isLoading: false });
+      this.#setDocuments(response.data);
+      this.#setDocumentCache(id, response.data);
+      this.#toggleLoading();
     })();
   }
 
-  closeModal() {
+  #setPath(newPath) {
+    this.breadcrumb.setState({
+      ...this.breadcrumb.state,
+      path: newPath,
+    });
+
+    localStorage.set("path", newPath);
+  }
+
+  #toggleLoading() {
+    this.loading.setState({
+      ...this.loading.state,
+      isLoading: !this.loading.state.isLoading,
+    });
+  }
+
+  #setDocuments(data) {
+    this.nodes.setState({ ...this.nodes.state, documents: data });
+    localStorage.set("documents", data);
+  }
+
+  #setDocumentCache(key, value) {
+    documentCache[key] = value;
+  }
+
+  #openNode({ target }) {
+    const $node = target.closest(".Node");
+
+    if (!$node) return;
+
+    const { id, type, filepath, name } = $node.dataset;
+    const isCacheAvailable = documentCache.hasOwnProperty(id);
+
+    switch (type) {
+      case "FILE":
+        this.#setImageVisible(true, filepath);
+        break;
+      case "DIRECTORY":
+        isCacheAvailable
+          ? this.#setDocuments(documentCache[id])
+          : this.#fetchDocuments(id);
+        this.#setPath([...this.breadcrumb.state.path, [id, name]]);
+        break;
+    }
+  }
+
+  #setImageVisible(bool, filepath = null) {
     this.imageViewer.setState({
       ...this.imageViewer.state,
-      visible: false,
+      visible: bool,
+      filepath,
     });
   }
 
-  openBreadcrumb({ target }) {
-    if (!target.closest(".Path")) return;
+  #openBreadcrumb({ target }) {
+    const $path = target.closest(".Path");
 
-    const { id: pathId } = target.closest(".Path").dataset;
+    if (!$path) return;
 
-    const clickedPathIndex = this.breadcrumb.state.path.findIndex(
+    const pathId = $path.dataset.id;
+
+    const indexOfTargetPath = this.breadcrumb.state.path.findIndex(
       ([id, _]) => id === pathId
     );
+    const newPath = this.breadcrumb.state.path.slice(0, indexOfTargetPath + 1);
 
-    const path = this.breadcrumb.state.path.slice(0, clickedPathIndex + 1);
-
-    this.breadcrumb.setState({
-      ...this.breadcrumb.state,
-      path,
-    });
-
-    localStorage.set("path", path);
-    this.fetchDocuments(pathId);
+    this.#setPath(newPath);
+    this.#fetchDocuments(pathId);
   }
 
-  goBack() {
-    const path = this.breadcrumb.state.path.slice(0, -1);
+  #goBack() {
+    const newPath = this.breadcrumb.state.path.slice(0, -1);
+    this.#setPath(newPath);
 
-    this.breadcrumb.setState({
-      ...this.breadcrumb.state,
-      path,
-    });
-
-    localStorage.set("path", path);
-
-    if (path.length) {
-      const parentId = path[path.length - 1][0];
-
-      if (!cache.hasOwnProperty(parentId)) {
-        this.fetchDocuments(parentId);
-        return;
-      }
-
-      this.nodes.setState({ ...this.nodes.state, documents: cache[parentId] });
-      localStorage.set("documents", cache[parentId]);
-
+    if (newPath.length === 0) {
+      const rootDocumentsCache = documentCache["/"];
+      rootDocumentsCache
+        ? this.#setDocuments(rootDocumentsCache)
+        : this.#fetchDocuments("/");
       return;
     }
 
-    const rootDocumentsCache = cache["/"];
+    const parentId = newPath[newPath.length - 1][0];
 
-    if (!rootDocumentsCache) {
-      this.fetchDocuments("/");
-      return;
-    }
+    this.#isCacheAvailable(parentId)
+      ? this.#setDocuments(documentCache[parentId])
+      : this.#fetchDocuments(parentId);
+  }
 
-    this.nodes.setState({
-      ...this.nodes.state,
-      documents: rootDocumentsCache,
-    });
+  #isCacheAvailable(id) {
+    return documentCache.hasOwnProperty(id);
+  }
 
-    localStorage.set("documents", rootDocumentsCache);
+  render() {
+    return `
+      <nav class="Breadcrumb"></nav>
+      <div class="Nodes"></div>
+    `;
   }
 }

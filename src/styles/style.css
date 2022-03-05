@@ -4,7 +4,6 @@
 
 body {
   display: flex;
-  justify-content: center;
   align-items: center;
   background-color: #eee;
   flex-direction: column;
@@ -22,7 +21,6 @@ body {
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
-  /* flex-wrap: wrap; */
 }
 
 .Node {
@@ -35,6 +33,10 @@ body {
   flex-direction: column;
   word-break: keep-all;
   cursor: pointer;
+}
+
+.GoBack {
+  height: 150px;
 }
 
 .NodeWrapper {

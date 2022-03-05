@@ -2,6 +2,7 @@ import Component from "../core/Component.mjs";
 
 export default class Loading extends Component {
   template() {
+    // Method Overriding for Modal
     this.target.insertAdjacentHTML("afterbegin", this.render());
   }
 

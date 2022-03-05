@@ -8,7 +8,7 @@ export default class Nodes extends Component {
       </div>
       <div class="NodeWrapper">
         ${this.state.documents
-          .map(({ id, name, type, filePath, parent }) => {
+          .map(({ id, name, type, filePath }) => {
             if (type === "DIRECTORY") {
               return `
                 <div class="Node" data-id=${id} data-type=${type} data-name=${name}>
@@ -17,7 +17,6 @@ export default class Nodes extends Component {
                 </div>
               `;
             }
-
             if (type === "FILE") {
               return `
                 <div class="Node" data-id=${id} data-type=${type} data-filepath=${filePath} data-name=${name}>

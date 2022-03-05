@@ -1,1 +1,1 @@
-export const cache = {};
+export const documentCache = {};

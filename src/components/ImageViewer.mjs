@@ -2,6 +2,7 @@ import Component from "../core/Component.mjs";
 
 export default class ImageViewer extends Component {
   template() {
+    // Method Overriding for Modal
     this.target.insertAdjacentHTML("afterbegin", this.render());
   }
 
@@ -28,7 +29,7 @@ export default class ImageViewer extends Component {
       const isOverlayClicked = target.className === "Modal ImageViewer";
 
       if (isOverlayClicked) {
-        this.state.closeModal();
+        this.state.setImageVisible(false);
       }
     });
 
@@ -36,7 +37,7 @@ export default class ImageViewer extends Component {
       e.stopImmediatePropagation();
 
       if (e.key === "Escape") {
-        this.state.closeModal();
+        this.state.setImageVisible(false);
       }
     });
   }
